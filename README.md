@@ -17,6 +17,10 @@
   <img src="https://img.shields.io/badge/Ollama-VLM-purple" alt="Ollama" />
 </p>
 
+<p align="center">
+  <a href="https://autoloto-demo.onrender.com"><strong>Live Demo</strong></a>
+</p>
+
 ---
 
 ## Screenshots
@@ -54,6 +58,7 @@ npm run dev
 |---------|-----|
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:3001 |
+| Live Demo | https://autoloto-demo.onrender.com |
 
 ## Prerequisites
 

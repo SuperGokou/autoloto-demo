@@ -3,8 +3,8 @@ services:
     name: autoloto
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm run start -w backend
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node backend/dist/server.js
     envVars:
       - key: NODE_ENV
         value: production
