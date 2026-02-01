@@ -29,7 +29,7 @@ const ALL_MODELS: ModelOption[] = [
   { value: 'llava:latest', label: 'LLaVA (Latest)', provider: 'ollama' },
   { value: 'qwen3-vl:latest', label: 'Qwen3-VL Ollama (Local)', provider: 'ollama' },
   { value: 'gpt-4o', label: 'GPT-4o Vision (Cloud)', provider: 'openai' },
-  { value: 'qwen3-vl-plus', label: 'Qwen3-VL Plus (Cloud)', provider: 'dashscope' },
+  { value: 'qwen3-vl-235b-a22b-thinking', label: 'Qwen3-VL 235B (Cloud)', provider: 'dashscope' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
