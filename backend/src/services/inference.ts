@@ -213,16 +213,107 @@ async function callOllamaGenerate(
   return resp.data?.response || '';
 }
 
+async function callOpenAIVision(
+  imagePath: string,
+  model: string,
+  referencePath?: string,
+): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not set. Add it to your .env file.');
+  }
+
+  const prompt = getPromptForModel(model, !!referencePath);
+  const content: Array<Record<string, any>> = [{ type: 'text', text: prompt }];
+
+  if (referencePath) {
+    const refB64 = encodeImageToBase64(referencePath);
+    content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${refB64}` } });
+  }
+  const imgB64 = encodeImageToBase64(imagePath);
+  content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${imgB64}` } });
+
+  const resp = await axios.post(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      model,
+      messages: [{ role: 'user', content }],
+      max_tokens: MAX_TOKENS,
+      temperature: TEMPERATURE,
+    },
+    {
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      timeout: REQUEST_TIMEOUT,
+    },
+  );
+
+  return resp.data?.choices?.[0]?.message?.content || '';
+}
+
+async function callDashScopeVision(
+  imagePath: string,
+  model: string,
+  referencePath?: string,
+): Promise<string> {
+  const apiKey = process.env.DASHSCOPE_API_KEY;
+  if (!apiKey) {
+    throw new Error('DASHSCOPE_API_KEY is not set. Add it to your .env file.');
+  }
+
+  const prompt = getPromptForModel(model, !!referencePath);
+  const content: Array<Record<string, any>> = [{ type: 'text', text: prompt }];
+
+  if (referencePath) {
+    const refB64 = encodeImageToBase64(referencePath);
+    content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${refB64}` } });
+  }
+  const imgB64 = encodeImageToBase64(imagePath);
+  content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${imgB64}` } });
+
+  const resp = await axios.post(
+    'https://dashscope-us.aliyuncs.com/compatible-mode/v1/chat/completions',
+    {
+      model,
+      messages: [{ role: 'user', content }],
+      max_tokens: MAX_TOKENS,
+      temperature: TEMPERATURE,
+    },
+    {
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      timeout: REQUEST_TIMEOUT,
+    },
+  );
+
+  return resp.data?.choices?.[0]?.message?.content || '';
+}
+
+type CloudProvider = 'openai' | 'dashscope' | null;
+
+function getCloudProvider(model: string): CloudProvider {
+  if (model.startsWith('gpt-')) return 'openai';
+  if (model.startsWith('qwen3-vl-')) return 'dashscope';
+  return null;
+}
+
 export async function analyzeDiagram(
   imagePath: string,
   model: string = 'qwen3-vl:latest',
   referencePath?: string,
 ): Promise<Topology> {
-  const useGenerate = model.toLowerCase().includes('deepseek-ocr');
-  const caller = useGenerate ? callOllamaGenerate : callOllamaChat;
-
   try {
-    const response = await caller(imagePath, model, referencePath);
+    let response: string;
+    const provider = getCloudProvider(model);
+
+    if (provider === 'openai') {
+      response = await callOpenAIVision(imagePath, model, referencePath);
+    } else if (provider === 'dashscope') {
+      response = await callDashScopeVision(imagePath, model, referencePath);
+    } else {
+      const useGenerate = model.toLowerCase().includes('deepseek-ocr');
+      const caller = useGenerate ? callOllamaGenerate : callOllamaChat;
+      response = await caller(imagePath, model, referencePath);
+    }
+
     return extractJsonFromResponse(response, model);
   } catch (err: any) {
     if (err.code === 'ECONNREFUSED') {

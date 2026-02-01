@@ -1,7 +1,8 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Upload, Zap, FileText, ChevronDown, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import logoImg from '../assets/logo.png';
+import { getEnv } from '../lib/api';
 
 interface SidebarProps {
   onAnalyze: () => void;
@@ -16,11 +17,19 @@ interface SidebarProps {
   onModelChange: (m: string) => void;
 }
 
-const MODELS = [
-  { value: 'llava:13b', label: 'LLaVA 13b (Fast)' },
-  { value: 'llava:7b', label: 'LLaVA 7b' },
-  { value: 'llava:latest', label: 'LLaVA (Latest)' },
-  { value: 'qwen3-vl:latest', label: 'Qwen3-VL (High Precision)' },
+interface ModelOption {
+  value: string;
+  label: string;
+  provider: 'ollama' | 'openai' | 'dashscope';
+}
+
+const ALL_MODELS: ModelOption[] = [
+  { value: 'llava:13b', label: 'LLaVA 13b (Fast)', provider: 'ollama' },
+  { value: 'llava:7b', label: 'LLaVA 7b', provider: 'ollama' },
+  { value: 'llava:latest', label: 'LLaVA (Latest)', provider: 'ollama' },
+  { value: 'qwen3-vl:latest', label: 'Qwen3-VL Ollama (Local)', provider: 'ollama' },
+  { value: 'gpt-4o', label: 'GPT-4o Vision (Cloud)', provider: 'openai' },
+  { value: 'qwen3-vl-235b-a22b-thinking', label: 'Qwen3-VL 235B (Cloud)', provider: 'dashscope' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -38,6 +47,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const fileRef = useRef<HTMLInputElement>(null);
   const refFileRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [models, setModels] = useState<ModelOption[]>(ALL_MODELS);
+
+  useEffect(() => {
+    getEnv().then((env) => {
+      const available = ALL_MODELS.filter((m) => {
+        if (m.provider === 'ollama') return env.ollama;
+        if (m.provider === 'openai') return env.openai;
+        if (m.provider === 'dashscope') return env.dashscope;
+        return false;
+      });
+      if (available.length > 0) {
+        setModels(available);
+        if (!available.find((m) => m.value === selectedModel)) {
+          onModelChange(available[0].value);
+        }
+      }
+    }).catch(() => { /* keep all models as fallback */ });
+  }, []);
 
   const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
 
@@ -119,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onChange={(e) => onModelChange(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-sm px-4 py-3 text-sm text-slate-700 font-medium appearance-none focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-shadow shadow-sm"
             >
-              {MODELS.map((m) => (
+              {models.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
                 </option>

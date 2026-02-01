@@ -64,6 +64,19 @@ npm run dev
   ollama pull llava:13b
   ```
 - **Poppler** (optional, for PDF upload support)
+- **OpenAI API Key** (optional, for cloud deployment without Ollama)
+
+## Deploy to Render
+
+1. Push your repo to GitHub
+2. On [Render](https://render.com), create a **New Web Service** and connect your repo
+3. Render will auto-detect `render.yaml`. Or configure manually:
+   - **Build Command:** `npm install && npm run build`
+   - **Start Command:** `npm run start -w backend`
+4. Add environment variable `OPENAI_API_KEY` with your OpenAI key
+5. Select the **GPT-4o Vision (Cloud)** model in the UI since Render has no GPU for Ollama
+
+The backend serves the frontend static build automatically in production.
 
 ## Architecture
 
@@ -281,6 +294,7 @@ flowchart TD
 | `llava:latest` | Latest LLaVA release |
 | `qwen3-vl:latest` | Optimized for circuit analysis |
 | `deepseek-ocr:latest` | Strong text and label extraction |
+| `gpt-4o` | Cloud-based, no GPU required (needs API key) |
 
 ## LOTO Safety Logic
 

@@ -34,6 +34,17 @@ export async function getLotoSteps(
   return data;
 }
 
+export interface EnvInfo {
+  ollama: boolean;
+  openai: boolean;
+  dashscope: boolean;
+}
+
+export async function getEnv(): Promise<EnvInfo> {
+  const { data } = await api.get<EnvInfo>('/env');
+  return data;
+}
+
 export async function healthCheck(): Promise<boolean> {
   try {
     await api.get('/health');

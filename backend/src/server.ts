@@ -4,6 +4,7 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import axios from 'axios';
 import { analyzeDiagram } from './services/inference';
 import { processImage, isPdf } from './services/preprocess';
 import { getLockoutRequirements } from './services/loto';
@@ -30,6 +31,21 @@ const upload = multer({ storage });
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Environment detection: which model providers are available
+app.get('/api/env', async (_req, res) => {
+  let ollamaAvailable = false;
+  try {
+    await axios.get(`${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'}/api/tags`, { timeout: 3000 });
+    ollamaAvailable = true;
+  } catch { /* Ollama not reachable */ }
+
+  res.json({
+    ollama: ollamaAvailable,
+    openai: !!process.env.OPENAI_API_KEY,
+    dashscope: !!process.env.DASHSCOPE_API_KEY,
+  });
 });
 
 // File upload
@@ -108,6 +124,15 @@ app.post('/api/layout', (req: any, res: any) => {
   const nodes = autoLayout(topology);
   res.json(nodes);
 });
+
+// In production, serve frontend static files
+const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`AutoLOTO backend running on http://localhost:${PORT}`);
