@@ -291,7 +291,7 @@ type CloudProvider = 'openai' | 'dashscope' | null;
 
 function getCloudProvider(model: string): CloudProvider {
   if (model.startsWith('gpt-')) return 'openai';
-  if (model.startsWith('qwen3-vl-')) return 'dashscope';
+  if (model.startsWith('qwen3-vl-') && !model.includes(':')) return 'dashscope';
   return null;
 }
 
