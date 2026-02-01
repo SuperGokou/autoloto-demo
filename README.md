@@ -429,7 +429,3 @@ Contributions are welcome. To get started:
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Make changes and test (`npm run dev`)
 4. Submit a pull request
-
-## License
-
-MIT
