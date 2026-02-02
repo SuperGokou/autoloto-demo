@@ -122,10 +122,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={clsx(
-              'border-2 rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all cursor-pointer group',
+              'border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all cursor-pointer group',
               isDragOver
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-slate-300 bg-white hover:border-blue-400',
+                ? 'border-blue-500 bg-blue-50/80'
+                : 'border-slate-300 bg-[rgba(21,93,252,0.03)] hover:border-blue-400 hover:bg-blue-50/50',
             )}
           >
             <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
@@ -180,9 +180,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <FileText className="w-4 h-4 text-slate-400 shrink-0" />
                 <span className="text-sm text-slate-600 flex-1 truncate">
-                  {referenceFileName || 'Symbol Legend.pdf'}
+                  {referenceFileName || 'Upload legend (optional)'}
                 </span>
-                <span className="text-[10px] font-bold text-blue-600">EDIT</span>
+                {referenceFileName && <span className="text-[10px] font-bold text-blue-600">EDIT</span>}
               </div>
             </div>
           </div>

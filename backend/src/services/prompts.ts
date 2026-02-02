@@ -113,6 +113,38 @@ export function connectionTracingPrompt(
   );
 }
 
+// -- Safety Report Generation --
+
+export function safetyReportPrompt(
+  components: Array<{ id: string; type: string; label: string }>,
+  connections: Array<{ source: string; target: string }>,
+  lotoSteps: Array<{ action: string; type: string; componentId: string }>,
+  simulationMode: string,
+): string {
+  const compList = components.map((c) => `- ${c.id}: ${c.type} (${c.label})`).join('\n');
+  const connList = connections.map((c) => `- ${c.source} -> ${c.target}`).join('\n');
+  const stepList = lotoSteps.map((s, i) => `${i + 1}. [${s.type.toUpperCase()}] ${s.action} (${s.componentId})`).join('\n');
+
+  return (
+    'You are a certified safety engineer. Generate a formal LOTO (Lock-Out / Tag-Out) safety report ' +
+    'for the following electrical circuit based on ISO 14118 and OSHA 29 CFR 1910.147 standards.\n\n' +
+    '## Circuit Components\n' + compList + '\n\n' +
+    '## Circuit Connections\n' + connList + '\n\n' +
+    '## Current System State: ' + simulationMode.toUpperCase() + '\n\n' +
+    '## LOTO Isolation Steps\n' + (stepList || '(No steps defined)') + '\n\n' +
+    'Write a professional safety report in Markdown with the following sections:\n' +
+    '1. **Executive Summary** - Brief overview of the system and purpose of the report\n' +
+    '2. **System Description** - Describe the circuit topology and key components\n' +
+    '3. **Hazard Identification** - Identify electrical hazards in this circuit\n' +
+    '4. **Isolation Procedure** - Step-by-step LOTO procedure with safety notes\n' +
+    '5. **Verification Requirements** - How to verify zero energy state\n' +
+    '6. **Restoration Procedure** - Steps to safely re-energize\n' +
+    '7. **Personnel Requirements** - Qualifications and PPE needed\n\n' +
+    'Use clear, professional language. Include specific component references. ' +
+    'Do NOT include any JSON. Write only the Markdown report.'
+  );
+}
+
 // -- Single-pass prompt (legacy / fallback) --
 
 export function singlePassPrompt(model: string, hasReference: boolean): string {

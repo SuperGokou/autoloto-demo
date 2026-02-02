@@ -233,6 +233,9 @@ export default function App() {
           onStepClick={handleStepClick}
           topologyJson={topologyJson}
           validationWarnings={validationWarnings}
+          components={circuitState.nodes.map((n) => ({ id: n.id, type: n.type, label: n.label }))}
+          connections={circuitState.edges.map((e) => ({ source: e.source, target: e.target }))}
+          selectedModel={selectedModel}
         />
       </div>
 
@@ -247,6 +250,9 @@ export default function App() {
             onStepClick={handleStepClick}
             topologyJson={topologyJson}
             validationWarnings={validationWarnings}
+            components={circuitState.nodes.map((n) => ({ id: n.id, type: n.type, label: n.label }))}
+            connections={circuitState.edges.map((e) => ({ source: e.source, target: e.target }))}
+            selectedModel={selectedModel}
           />
         </div>
       </div>

@@ -5,11 +5,12 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
-import { analyzeDiagram, analyzeCircuitMultiStage } from './services/inference';
+import { analyzeDiagram, analyzeCircuitMultiStage, callTextLlm } from './services/inference';
 import { validateTopology } from './services/validator';
 import { processImage, isPdf } from './services/preprocess';
 import { getLockoutRequirements } from './services/loto';
 import { autoLayout } from './utils/layout';
+import { safetyReportPrompt } from './services/prompts';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -144,6 +145,29 @@ app.post('/api/layout', (req: any, res: any) => {
   }
   const nodes = autoLayout(topology);
   res.json(nodes);
+});
+
+// Generate safety report using LLM
+app.post('/api/report', async (req: any, res: any) => {
+  const { components, connections, lotoSteps, simulationMode, model } = req.body;
+
+  if (!components || !connections) {
+    return res.status(400).json({ error: 'components and connections are required' });
+  }
+
+  try {
+    const prompt = safetyReportPrompt(
+      components,
+      connections,
+      lotoSteps || [],
+      simulationMode || 'energized',
+    );
+    const selectedModel = model || 'llava:13b';
+    const report = await callTextLlm(prompt, selectedModel);
+    res.json({ report });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // In production, serve frontend static files

@@ -250,6 +250,67 @@ function extractPartialJson(response: string): any {
   return null;
 }
 
+// --------------- Text LLM call (no images) ---------------
+
+export async function callTextLlm(
+  prompt: string,
+  model: string,
+): Promise<string> {
+  const provider = getCloudProvider(model);
+
+  if (provider === 'openai') {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error('OPENAI_API_KEY is not set.');
+    const resp = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: MAX_TOKENS,
+        temperature: 0.3,
+      },
+      {
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        timeout: REQUEST_TIMEOUT,
+      },
+    );
+    return resp.data?.choices?.[0]?.message?.content || '';
+  }
+
+  if (provider === 'dashscope') {
+    const apiKey = process.env.DASHSCOPE_API_KEY;
+    if (!apiKey) throw new Error('DASHSCOPE_API_KEY is not set.');
+    const resp = await axios.post(
+      'https://dashscope-us.aliyuncs.com/compatible-mode/v1/chat/completions',
+      {
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: MAX_TOKENS,
+        temperature: 0.3,
+      },
+      {
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        timeout: REQUEST_TIMEOUT,
+      },
+    );
+    return resp.data?.choices?.[0]?.message?.content || '';
+  }
+
+  // Ollama
+  const resp = await axios.post(
+    `${OLLAMA_BASE_URL}/api/chat`,
+    {
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false,
+      options: { temperature: 0.3, num_predict: MAX_TOKENS },
+    },
+    { timeout: REQUEST_TIMEOUT },
+  );
+  const msg = resp.data?.message;
+  return msg?.content || msg?.thinking || '';
+}
+
 // --------------- VLM call helpers ---------------
 
 async function callVlm(

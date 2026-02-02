@@ -52,6 +52,17 @@ export async function getEnv(): Promise<EnvInfo> {
   return data;
 }
 
+export async function generateReport(payload: {
+  components: Array<{ id: string; type: string; label: string }>;
+  connections: Array<{ source: string; target: string }>;
+  lotoSteps: Array<{ action: string; type: string; componentId: string }>;
+  simulationMode: string;
+  model: string;
+}): Promise<string> {
+  const { data } = await api.post<{ report: string }>('/report', payload);
+  return data.report;
+}
+
 export async function healthCheck(): Promise<boolean> {
   try {
     await api.get('/health');

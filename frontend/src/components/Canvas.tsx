@@ -43,19 +43,19 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const getNodeBorderColor = (type: string) => {
     switch (type) {
-      case 'breaker': return 'border-l-red-500';
-      case 'switch': return 'border-l-blue-500';
-      case 'capacitor': return 'border-l-cyan-500';
-      case 'motor': return 'border-l-indigo-500';
-      case 'source': return 'border-l-emerald-500';
-      case 'transform': return 'border-l-purple-500';
+      case 'breaker': return 'border-l-[#fb2c36]';
+      case 'switch': return 'border-l-[#2b7fff]';
+      case 'capacitor': return 'border-l-[#00b8db]';
+      case 'motor': return 'border-l-[#615fff]';
+      case 'source': return 'border-l-[#00bc7d]';
+      case 'transform': return 'border-l-[#ad46ff]';
       default: return 'border-l-slate-400';
     }
   };
 
   const getNodeStatusColor = (status: string, mode: string) => {
-    if (mode === 'energized') return 'bg-red-500';
-    return status === 'energized' ? 'bg-red-500' : 'bg-emerald-500';
+    if (mode === 'energized') return 'bg-[#fb2c36]';
+    return status === 'energized' ? 'bg-[#fb2c36]' : 'bg-[#00bc7d]';
   };
 
   return (
@@ -113,7 +113,7 @@ export const Canvas: React.FC<CanvasProps> = ({
               <polygon points="0 0, 10 3.5, 0 7" fill="#94A3B8" />
             </marker>
             <marker id="arrowhead-energized" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
-              <polygon points="0 0, 10 3.5, 0 7" fill="#F59E0B" />
+              <polygon points="0 0, 10 3.5, 0 7" fill="#fe9a00" />
             </marker>
           </defs>
           {edges.map((edge) => {
@@ -131,7 +131,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             const midX = (x1 + x2) / 2;
             const pathD = `M${x1},${y1} L${midX},${y1} L${midX},${y2} L${x2},${y2}`;
 
-            const strokeColor = isLowConfidence ? '#EAB308' : isEnergized ? '#F59E0B' : '#94A3B8';
+            const strokeColor = isLowConfidence ? '#EAB308' : isEnergized ? '#fe9a00' : '#94A3B8';
             const dashArray = isLowConfidence ? '6 4' : undefined;
 
             return (
@@ -156,7 +156,7 @@ export const Canvas: React.FC<CanvasProps> = ({
                   </text>
                 )}
                 {isEnergized && (
-                  <circle r="3" fill="#F59E0B">
+                  <circle r="3" fill="#fe9a00">
                     <animateMotion
                       dur="1.5s"
                       repeatCount="indefinite"
@@ -189,7 +189,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             className={clsx(
-              'absolute w-[180px] h-[60px] bg-white rounded shadow-sm flex flex-col justify-between px-3 py-2 cursor-pointer transition-all hover:scale-105 z-10 border-l-[6px] border border-slate-200',
+              'absolute w-[180px] h-[60px] bg-white rounded shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.06)] flex flex-col justify-between pl-[18px] pr-3 py-2 cursor-pointer transition-all hover:scale-105 z-10 border-l-[6px] border-y border-r border-slate-200',
               getNodeBorderColor(node.type),
               selectedNodeId === node.id ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-50 shadow-md' : '',
             )}
@@ -211,13 +211,13 @@ export const Canvas: React.FC<CanvasProps> = ({
       <div className="absolute bottom-6 left-6 flex flex-col gap-2 pointer-events-none">
         <div className="bg-white/90 backdrop-blur border border-slate-200 p-3 rounded-lg text-xs text-slate-600 shadow-lg">
           <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div> <span>Breaker / Disconnect</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-[#fb2c36]"></div> <span>Breaker / Disconnect</span>
           </div>
           <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-cyan-500"></div> <span>Capacitor Bank</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-[#00b8db]"></div> <span>Capacitor Bank</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div> <span>Live / Energized</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-[#fe9a00]"></div> <span>Live / Energized</span>
           </div>
         </div>
       </div>

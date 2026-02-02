@@ -1,7 +1,24 @@
-import React from 'react';
-import { Download, FileDown, ShieldCheck, Lock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Download, FileDown, ShieldCheck, Lock, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { CircuitNode, LotoStep, ValidationWarning } from '../types';
+import { generateReport } from '../lib/api';
+
+function markdownToHtml(md: string): string {
+  return md
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`)
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/^(?!<[hup]|<li|<ul)(.+)$/gm, '<p>$1</p>')
+    .replace(/<p><\/p>/g, '');
+}
 
 interface RightPanelProps {
   selectedNode: CircuitNode | null;
@@ -11,6 +28,9 @@ interface RightPanelProps {
   onStepClick: (stepId: string) => void;
   topologyJson?: string;
   validationWarnings?: ValidationWarning[];
+  components: Array<{ id: string; type: string; label: string }>;
+  connections: Array<{ source: string; target: string }>;
+  selectedModel: string;
 }
 
 export const RightPanel: React.FC<RightPanelProps> = ({
@@ -21,7 +41,59 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   onStepClick,
   topologyJson,
   validationWarnings = [],
+  components,
+  connections,
+  selectedModel,
 }) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerateReport = async () => {
+    if (components.length === 0) return;
+    setIsGenerating(true);
+    try {
+      const report = await generateReport({
+        components,
+        connections,
+        lotoSteps: lotoSteps.map((s) => ({ action: s.action, type: s.type, componentId: s.componentId })),
+        simulationMode,
+        model: selectedModel,
+      });
+      // Open printable report in new window
+      const win = window.open('', '_blank');
+      if (!win) return;
+      win.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>LOTO Safety Report</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 24px; border-bottom: 2px solid #1e40af; padding-bottom: 8px; color: #1e3a5f; }
+  h2 { font-size: 18px; color: #1e3a5f; margin-top: 32px; }
+  h3 { font-size: 15px; color: #334155; }
+  p, li { font-size: 14px; }
+  code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 13px; }
+  strong { color: #0f172a; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; font-size: 13px; }
+  th { background: #f8fafc; font-weight: bold; }
+  .header { text-align: center; margin-bottom: 32px; }
+  .header p { color: #64748b; font-size: 12px; }
+  @media print { body { margin: 20px; } }
+</style>
+</head><body>
+<div class="header">
+  <h1>LOTO Safety Report</h1>
+  <p>Generated: ${new Date().toLocaleString()} | ISO 14118 / OSHA 29 CFR 1910.147</p>
+</div>
+${markdownToHtml(report)}
+</body></html>`);
+      win.document.close();
+      win.print();
+    } catch (err) {
+      console.error('Report generation failed:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const downloadJson = () => {
     if (!topologyJson) return;
     const blob = new Blob([topologyJson], { type: 'application/json' });
@@ -85,8 +157,8 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">System State</h3>
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-amber-500 opacity-95"></div>
-              <span className="text-[10px] font-bold text-amber-600">LIVE VOLTAGE</span>
+              <div className="w-2 h-2 rounded-full bg-[#fe9a00] opacity-95"></div>
+              <span className="text-[10px] font-bold text-[#e17100]">LIVE VOLTAGE</span>
             </div>
           </div>
           <div className="bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
@@ -96,7 +168,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                 className={clsx(
                   'flex-1 py-2 rounded-lg text-xs font-bold transition-all',
                   simulationMode === 'energized'
-                    ? 'bg-amber-50 border border-amber-200 text-amber-700 shadow-sm'
+                    ? 'bg-[#fffbeb] border border-[#fef3c6] text-[#bb4d00] shadow-sm'
                     : 'text-slate-400 hover:text-slate-600',
                 )}
               >
@@ -167,18 +239,13 @@ export const RightPanel: React.FC<RightPanelProps> = ({
                   <div className="flex items-center justify-between mt-1.5">
                     <div>
                       {step.type === 'lockout' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 font-bold border border-red-100">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-[#e7000b] font-bold border border-red-100">
                           Lockout
                         </span>
                       )}
                       {step.type === 'verification' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-bold border border-amber-200">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-[#e17100] font-bold border border-amber-200">
                           Verify
-                        </span>
-                      )}
-                      {step.type === 'isolation' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-bold border border-blue-200">
-                          Isolation
                         </span>
                       )}
                     </div>
@@ -201,9 +268,18 @@ export const RightPanel: React.FC<RightPanelProps> = ({
             <Download className="w-4 h-4" />
             JSON
           </button>
-          <button className="flex-1 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-600 text-xs font-bold hover:bg-slate-50 hover:border-slate-300 transition-colors flex items-center justify-center gap-2">
-            <FileDown className="w-4 h-4" />
-            PDF Report
+          <button
+            onClick={handleGenerateReport}
+            disabled={isGenerating || components.length === 0}
+            className={clsx(
+              'flex-1 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2',
+              isGenerating || components.length === 0
+                ? 'text-slate-300 cursor-not-allowed'
+                : 'text-slate-600 hover:bg-slate-50 hover:border-slate-300',
+            )}
+          >
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+            {isGenerating ? 'Generating...' : 'PDF Report'}
           </button>
         </div>
       </div>
