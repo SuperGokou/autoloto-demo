@@ -2,6 +2,7 @@ export interface Component {
   id: string;
   type: string;
   label: string;
+  position?: string;
 }
 
 export interface Connection {
@@ -9,6 +10,7 @@ export interface Connection {
   target: string;
   wire_id?: string;
   pipe_id?: string;
+  confidence?: number;
 }
 
 export interface Topology {
@@ -17,6 +19,13 @@ export interface Topology {
   parse_error?: string;
   raw_response?: string;
   raw_ocr?: string;
+  validation_warnings?: ValidationWarning[];
+}
+
+export interface ValidationWarning {
+  type: 'orphan' | 'invalid_reference' | 'duplicate';
+  message: string;
+  componentId: string;
 }
 
 export interface LotoRequirement {

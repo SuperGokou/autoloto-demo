@@ -3,8 +3,8 @@ import { Sidebar } from './components/Sidebar';
 import { Canvas } from './components/Canvas';
 import { RightPanel } from './components/RightPanel';
 import { initialCircuitData } from './lib/mockData';
-import type { CircuitNode, CircuitState, TopologyResponse } from './types';
-import { uploadFile, analyzeCircuit } from './lib/api';
+import type { CircuitNode, CircuitState, TopologyResponse, ValidationWarning } from './types';
+import { uploadFile, analyzeCircuit, validateTopology } from './lib/api';
 import { Menu } from 'lucide-react';
 import logoImg from './assets/logo.png';
 
@@ -97,6 +97,8 @@ function topologyToCircuitState(topo: TopologyResponse): CircuitState {
     source: conn.source,
     target: conn.target,
     energized: true,
+    confidence: conn.confidence,
+    wire_id: conn.wire_id,
   }));
 
   return { nodes, edges, lotoSteps: [], simulationMode: 'energized' };
@@ -108,6 +110,7 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const [validationWarnings, setValidationWarnings] = useState<ValidationWarning[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [useDemoData, setUseDemoData] = useState(false);
@@ -150,6 +153,12 @@ export default function App() {
     try {
       const topo = await analyzeCircuit(imagePath, selectedModel, referencePath ?? undefined);
       if (topo.components.length > 0) {
+        try {
+          const validation = await validateTopology(topo);
+          setValidationWarnings(validation.warnings as ValidationWarning[]);
+        } catch {
+          setValidationWarnings([]);
+        }
         setCircuitState(topologyToCircuitState(topo));
       }
     } catch (err) {
@@ -223,6 +232,7 @@ export default function App() {
           lotoSteps={circuitState.lotoSteps}
           onStepClick={handleStepClick}
           topologyJson={topologyJson}
+          validationWarnings={validationWarnings}
         />
       </div>
 
@@ -236,6 +246,7 @@ export default function App() {
             lotoSteps={circuitState.lotoSteps}
             onStepClick={handleStepClick}
             topologyJson={topologyJson}
+            validationWarnings={validationWarnings}
           />
         </div>
       </div>

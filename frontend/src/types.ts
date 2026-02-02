@@ -15,6 +15,14 @@ export interface CircuitEdge {
   source: string;
   target: string;
   energized: boolean;
+  confidence?: number;
+  wire_id?: string;
+}
+
+export interface ValidationWarning {
+  type: 'orphan' | 'invalid_reference' | 'duplicate';
+  message: string;
+  componentId: string;
 }
 
 export interface LotoStep {
@@ -39,12 +47,15 @@ export interface TopologyResponse {
     id: string;
     type: string;
     label: string;
+    position?: string;
   }>;
   connections: Array<{
     source: string;
     target: string;
     wire_id?: string;
+    confidence?: number;
   }>;
   parse_error?: string;
   raw_response?: string;
+  validation_warnings?: ValidationWarning[];
 }

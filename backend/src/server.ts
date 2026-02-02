@@ -5,7 +5,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
-import { analyzeDiagram } from './services/inference';
+import { analyzeDiagram, analyzeCircuitMultiStage } from './services/inference';
+import { validateTopology } from './services/validator';
 import { processImage, isPdf } from './services/preprocess';
 import { getLockoutRequirements } from './services/loto';
 import { autoLayout } from './utils/layout';
@@ -87,11 +88,21 @@ app.post('/api/analyze', async (req: any, res: any) => {
   }
 
   try {
-    const topology = await analyzeDiagram(imagePath, model || 'qwen3-vl:latest', referencePath);
+    const useMultiStage = req.body.multiStage !== false;
+    const selectedModel = model || 'qwen3-vl:latest';
+
+    let topology;
+    if (useMultiStage) {
+      topology = await analyzeCircuitMultiStage(imagePath, selectedModel, referencePath);
+    } else {
+      topology = await analyzeDiagram(imagePath, selectedModel, referencePath);
+    }
 
     // If first attempt with reference fails, retry without
     if (topology.parse_error && referencePath) {
-      const retry = await analyzeDiagram(imagePath, model || 'qwen3-vl:latest');
+      const retry = useMultiStage
+        ? await analyzeCircuitMultiStage(imagePath, selectedModel)
+        : await analyzeDiagram(imagePath, selectedModel);
       if (!retry.parse_error) {
         return res.json(retry);
       }
@@ -113,6 +124,16 @@ app.post('/api/loto', (req: any, res: any) => {
 
   const requirements = getLockoutRequirements(topology, componentId);
   res.json(requirements);
+});
+
+// Validate topology
+app.post('/api/validate', (req: any, res: any) => {
+  const { topology } = req.body;
+  if (!topology) {
+    return res.status(400).json({ error: 'topology is required' });
+  }
+  const result = validateTopology(topology);
+  res.json(result);
 });
 
 // Auto-layout endpoint

@@ -2,6 +2,11 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { Topology } from '../types';
+import {
+  componentDiscoveryPrompt,
+  connectionTracingPrompt,
+  singlePassPrompt,
+} from './prompts';
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const REQUEST_TIMEOUT = 300_000;
@@ -10,88 +15,6 @@ const MAX_TOKENS = 8192;
 
 function encodeImageToBase64(imagePath: string): string {
   return fs.readFileSync(imagePath).toString('base64');
-}
-
-function getPromptForModel(model: string, hasReference: boolean): string {
-  if (model.toLowerCase().includes('deepseek-ocr')) {
-    return '<|grounding|>Convert the document to markdown.';
-  }
-
-  if (model.toLowerCase().includes('qwen')) {
-    if (hasReference) {
-      return (
-        'Image 1 is a symbol reference. Image 2 is a circuit diagram.\n\n' +
-        'Identify all components and connections in the circuit diagram.\n\n' +
-        'Return JSON only:\n' +
-        '{\n  "components": [{"id": "CB-01", "type": "Circuit Breaker", "label": "CB 01"}],\n' +
-        '  "connections": [{"source": "CB-01", "target": "M-01"}]\n}'
-      );
-    }
-    return (
-      'Analyze this electrical circuit diagram carefully.\n\n' +
-      'Read ALL component labels visible in the schematic. Look for:\n' +
-      '- Resistors: R1, R2, R3, R4, R5, R6, R7, R8, etc.\n' +
-      '- Capacitors: C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, etc.\n' +
-      '- Diodes: D1, D2, D3, D4, D5, D6, D7, etc.\n' +
-      '- Transistors/ICs: U1, U2, Q1, etc.\n' +
-      '- Transformers: T1, T2, etc.\n' +
-      '- Inductors: L1, L2, etc.\n' +
-      '- Fuses: F1, F2, etc.\n' +
-      '- Varistors/MOVs: RV1, VR1, VR2, VR3, etc.\n\n' +
-      'List every component you can read from the diagram.\n\n' +
-      'Return JSON:\n{\n' +
-      '  "components": [\n' +
-      '    {"id": "R1", "type": "Resistor", "label": "R1 1k"},\n' +
-      '    {"id": "C1", "type": "Capacitor", "label": "C1 6.8uF"}\n' +
-      '  ],\n' +
-      '  "connections": [{"source": "D1", "target": "C1"}]\n}'
-    );
-  }
-
-  // LLaVA and other models
-  if (hasReference) {
-    return (
-      'Image 1: Symbol reference guide\nImage 2: Circuit diagram to analyze\n\n' +
-      'Find all electrical components and their connections.\n\n' +
-      'Return ONLY JSON:\n{\n' +
-      '  "components": [\n' +
-      '    {"id": "CB-01", "type": "Circuit Breaker", "label": "CB 01"},\n' +
-      '    {"id": "M-01", "type": "Motor", "label": "M 01"}\n' +
-      '  ],\n' +
-      '  "connections": [\n' +
-      '    {"source": "CB-01", "target": "M-01", "wire_id": "L1"}\n' +
-      '  ]\n}'
-    );
-  }
-
-  return (
-    'You are an expert electronics engineer analyzing a power supply schematic.\n\n' +
-    'TASK: Read EVERY component label in this circuit diagram. Go section by section:\n\n' +
-    'INPUT SECTION (left side):\n- Look for fuse F1\n- Look for varistor RV1\n' +
-    '- Look for diodes D1, D2, D3, D4 (bridge rectifier)\n- Look for capacitors C1, C2\n\n' +
-    'PRIMARY SECTION (center-left):\n- Look for resistors R1, R5\n- Look for diode D5\n' +
-    '- Look for zener VR2\n- Look for inductor L1\n- Look for IC U1 (controller chip)\n' +
-    '- Look for capacitor C7\n- Look for resistor R8\n\n' +
-    'TRANSFORMER (center):\n- Look for transformer T1\n\n' +
-    'SECONDARY SECTION (center-right):\n- Look for capacitors C4, C5, C6\n' +
-    '- Look for resistors R2, R3, R7\n- Look for diode D6\n- Look for zener VR3\n- Look for resistor R6\n\n' +
-    'OUTPUT SECTION (right side):\n- Look for diode D7\n- Look for inductor L2\n' +
-    '- Look for capacitors C10, C11\n- Look for optocoupler U2\n- Look for resistor R4\n\n' +
-    'CONNECTIONS - trace the signal flow:\n' +
-    '- AC input connects to F1\n- F1 connects to RV1\n- RV1 connects to D1-D4 bridge\n' +
-    '- Bridge output connects to C1, C2\n- C1/C2 connects to T1 primary\n' +
-    '- T1 primary connects to U1 (drain pin)\n- T1 secondary connects to D7\n' +
-    '- D7 connects to L2\n- L2 connects to C10, C11\n- Output feedback: C10/C11 to VR3 to U2 to U1\n\n' +
-    'Return JSON format with ALL components AND connections:\n{\n' +
-    '  "components": [\n' +
-    '    {"id": "F1", "type": "Fuse", "label": "F1 3.15A"},\n' +
-    '    {"id": "RV1", "type": "Varistor", "label": "RV1 275VAC"}\n' +
-    '  ],\n' +
-    '  "connections": [\n' +
-    '    {"source": "F1", "target": "RV1"}\n' +
-    '  ]\n}\n\n' +
-    'IMPORTANT: Return valid JSON with both components and connections.'
-  );
 }
 
 function buildImages(imagePath: string, referencePath?: string): string[] {
@@ -123,6 +46,134 @@ function parseDeepseekOcrOutput(markdownText: string): Topology {
     return { id: normalized, type: compType, label };
   });
   return { components, connections: [], raw_ocr: markdownText };
+}
+
+const COMPONENT_PATTERNS: Array<{ re: RegExp; type: string }> = [
+  { re: /\b(R\d+)\b/g, type: 'Resistor' },
+  { re: /\b(C\d+)\b/g, type: 'Capacitor' },
+  { re: /\b(L\d+)\b/g, type: 'Inductor' },
+  { re: /\b(VD\d+)\b/g, type: 'Diode' },
+  { re: /\b(D\d+)\b/g, type: 'Diode' },
+  { re: /\b(VZ\d*)\b/g, type: 'Zener Diode' },
+  { re: /\b(ZD\d+)\b/g, type: 'Zener Diode' },
+  { re: /\b(Q\d+)\b/g, type: 'Transistor' },
+  { re: /\b(VT\d+)\b/g, type: 'Transistor' },
+  { re: /\b(V\d+)\b/g, type: 'Transistor' },
+  { re: /\b(IC\d+)\b/g, type: 'IC' },
+  { re: /\b(U\d+)\b/g, type: 'IC' },
+  { re: /\b(T\d+)\b/g, type: 'Transformer' },
+  { re: /\b(F\d+)\b/g, type: 'Fuse' },
+  { re: /\b(LED\d*)\b/g, type: 'LED' },
+  { re: /\b(RV\d+)\b/g, type: 'Varistor' },
+  { re: /\b(S\d+)\b/g, type: 'Switch' },
+  { re: /\b(SW\d+)\b/g, type: 'Switch' },
+  { re: /\b(RP\d+)\b/g, type: 'Potentiometer' },
+];
+
+/**
+ * Fallback parser: extract component IDs and connection pairs from
+ * verbose/thinking model output when JSON parsing fails.
+ *
+ * To avoid phantom matches (e.g., "C4" from "pin 4"), we require that
+ * a candidate ID appears near a component-type keyword or a value-like
+ * token (e.g., "10k", "IN4001", "220u") within the same line.
+ */
+function parseComponentsFromText(text: string): Topology {
+  const componentMap = new Map<string, string>(); // id -> type
+
+  // Count occurrences of each candidate ID to filter phantoms
+  const idCounts = new Map<string, number>();
+  for (const { re } of COMPONENT_PATTERNS) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const id = m[1];
+      idCounts.set(id, (idCounts.get(id) || 0) + 1);
+    }
+  }
+
+  for (const { re, type } of COMPONENT_PATTERNS) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const id = m[1];
+      if (componentMap.has(id)) continue;
+      // Multi-char prefixes (VD, IC, LED, RP, SW, VZ) are unlikely phantoms - accept always.
+      // Single-char prefixes (R, C, D, T, V, L, F, S, U) need 2+ mentions to filter
+      // phantom matches from pin numbers, step counts, etc.
+      const count = idCounts.get(id) || 0;
+      const prefixLen = id.replace(/\d+$/, '').length;
+      if (prefixLen >= 2 || count >= 2) {
+        componentMap.set(id, type);
+      }
+    }
+  }
+
+  // Try to extract labels like "R1 20k", "C1 220u/16V", "VD1 IN4001"
+  const components = [...componentMap.entries()].map(([id, type]) => {
+    const labelRe = new RegExp(`${id}[:\\s]+([\\w./]+(?:\\s*[\\w./]+)?)`, 'i');
+    const labelMatch = text.match(labelRe);
+    const label = labelMatch ? `${id} ${labelMatch[1]}` : id;
+    return { id, type, label };
+  });
+
+  // Extract connections via multiple patterns
+  const connections: Array<{ source: string; target: string }> = [];
+  const ids = new Set(componentMap.keys());
+  const idPattern = '[A-Z]+\\d+';
+
+  // Pattern 1: "X connected to Y", "X connects to Y", "X -> Y", "X → Y"
+  const connPatterns = [
+    new RegExp(`\\b(${idPattern})\\b\\s*(?:connected to|connects to|→|->|=>|to)\\s*\\b(${idPattern})\\b`, 'gi'),
+    // Pattern 2: "X and Y" in connection context
+    new RegExp(`\\b(${idPattern})\\b\\s*(?:and|,)\\s*\\b(${idPattern})\\b`, 'gi'),
+    // Pattern 3: "source": "X", "target": "Y" in partial JSON
+    new RegExp(`"source"\\s*:\\s*"(${idPattern})"[^}]*"target"\\s*:\\s*"(${idPattern})"`, 'gi'),
+  ];
+
+  for (const re of connPatterns) {
+    let cm: RegExpExecArray | null;
+    while ((cm = re.exec(text)) !== null) {
+      const src = cm[1].toUpperCase();
+      const tgt = cm[2].toUpperCase();
+      if (ids.has(src) && ids.has(tgt) && src !== tgt) {
+        connections.push({ source: src, target: tgt });
+      }
+    }
+  }
+
+  // Pattern 4: proximity - find component IDs mentioned near each other in
+  // connection-related sentences. Split text into sentences, look for sentences
+  // with 2+ component IDs and connection keywords.
+  const connKeywords = /connect|wire|trace|link|path|pin|output|input|anode|cathode|bridge|series|parallel/i;
+  const sentences = text.split(/[.\n]/);
+  const idRe = new RegExp(`\\b(${idPattern})\\b`, 'g');
+  for (const sentence of sentences) {
+    if (!connKeywords.test(sentence)) continue;
+    const found: string[] = [];
+    let sm: RegExpExecArray | null;
+    idRe.lastIndex = 0;
+    while ((sm = idRe.exec(sentence)) !== null) {
+      const id = sm[1].toUpperCase();
+      if (ids.has(id) && !found.includes(id)) found.push(id);
+    }
+    // Create chain connections for IDs in the same sentence
+    for (let i = 0; i < found.length - 1; i++) {
+      connections.push({ source: found[i], target: found[i + 1] });
+    }
+  }
+
+  // Deduplicate connections
+  const seen = new Set<string>();
+  const dedupedConns = connections.filter((c) => {
+    const key = `${c.source}--${c.target}`;
+    const rev = `${c.target}--${c.source}`;
+    if (seen.has(key) || seen.has(rev)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { components, connections: dedupedConns };
 }
 
 function extractJsonFromResponse(response: string, model: string): Topology {
@@ -161,6 +212,12 @@ function extractJsonFromResponse(response: string, model: string): Topology {
     } catch { /* continue */ }
   }
 
+  // Fallback: extract components and connections from unstructured text
+  const parsed = parseComponentsFromText(cleaned);
+  if (parsed.components.length > 0) {
+    return { ...parsed, raw_response: response };
+  }
+
   return {
     components: [], connections: [],
     raw_response: response,
@@ -168,14 +225,59 @@ function extractJsonFromResponse(response: string, model: string): Topology {
   };
 }
 
-async function callOllamaChat(
-  imagePath: string,
-  model: string,
-  referencePath?: string,
-): Promise<string> {
-  const images = buildImages(imagePath, referencePath);
-  const prompt = getPromptForModel(model, !!referencePath);
+function extractPartialJson(response: string): any {
+  if (!response || !response.trim()) return null;
+  const cleaned = response.trim();
 
+  try { return JSON.parse(cleaned); } catch { /* continue */ }
+
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1]); } catch { /* continue */ }
+  }
+
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try { return JSON.parse(objMatch[0]); } catch { /* continue */ }
+  }
+
+  // Fallback: extract from unstructured text
+  const parsed = parseComponentsFromText(cleaned);
+  if (parsed.components.length > 0) {
+    return parsed;
+  }
+
+  return null;
+}
+
+// --------------- VLM call helpers ---------------
+
+async function callVlm(
+  prompt: string,
+  images: string[],
+  model: string,
+): Promise<string> {
+  const provider = getCloudProvider(model);
+
+  if (provider === 'openai') {
+    return callOpenAIVision(prompt, images, model);
+  }
+  if (provider === 'dashscope') {
+    return callDashScopeVision(prompt, images, model);
+  }
+
+  const useGenerate = model.toLowerCase().includes('deepseek-ocr');
+  if (useGenerate) {
+    return callOllamaGenerate(prompt, images, model);
+  }
+  return callOllamaChat(prompt, images, model);
+}
+
+async function callOllamaChat(
+  prompt: string,
+  images: string[],
+  model: string,
+): Promise<string> {
   const resp = await axios.post(
     `${OLLAMA_BASE_URL}/api/chat`,
     {
@@ -186,18 +288,15 @@ async function callOllamaChat(
     },
     { timeout: REQUEST_TIMEOUT },
   );
-
-  return resp.data?.message?.content || '';
+  const msg = resp.data?.message;
+  return msg?.content || msg?.thinking || '';
 }
 
 async function callOllamaGenerate(
-  imagePath: string,
+  prompt: string,
+  images: string[],
   model: string,
-  referencePath?: string,
 ): Promise<string> {
-  const images = buildImages(imagePath, referencePath);
-  const prompt = getPromptForModel(model, !!referencePath);
-
   const resp = await axios.post(
     `${OLLAMA_BASE_URL}/api/generate`,
     {
@@ -209,29 +308,23 @@ async function callOllamaGenerate(
     },
     { timeout: REQUEST_TIMEOUT },
   );
-
   return resp.data?.response || '';
 }
 
 async function callOpenAIVision(
-  imagePath: string,
+  prompt: string,
+  images: string[],
   model: string,
-  referencePath?: string,
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not set. Add it to your .env file.');
   }
 
-  const prompt = getPromptForModel(model, !!referencePath);
   const content: Array<Record<string, any>> = [{ type: 'text', text: prompt }];
-
-  if (referencePath) {
-    const refB64 = encodeImageToBase64(referencePath);
-    content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${refB64}` } });
+  for (const img of images) {
+    content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${img}` } });
   }
-  const imgB64 = encodeImageToBase64(imagePath);
-  content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${imgB64}` } });
 
   const resp = await axios.post(
     'https://api.openai.com/v1/chat/completions',
@@ -246,29 +339,23 @@ async function callOpenAIVision(
       timeout: REQUEST_TIMEOUT,
     },
   );
-
   return resp.data?.choices?.[0]?.message?.content || '';
 }
 
 async function callDashScopeVision(
-  imagePath: string,
+  prompt: string,
+  images: string[],
   model: string,
-  referencePath?: string,
 ): Promise<string> {
   const apiKey = process.env.DASHSCOPE_API_KEY;
   if (!apiKey) {
     throw new Error('DASHSCOPE_API_KEY is not set. Add it to your .env file.');
   }
 
-  const prompt = getPromptForModel(model, !!referencePath);
   const content: Array<Record<string, any>> = [{ type: 'text', text: prompt }];
-
-  if (referencePath) {
-    const refB64 = encodeImageToBase64(referencePath);
-    content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${refB64}` } });
+  for (const img of images) {
+    content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${img}` } });
   }
-  const imgB64 = encodeImageToBase64(imagePath);
-  content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${imgB64}` } });
 
   const resp = await axios.post(
     'https://dashscope-us.aliyuncs.com/compatible-mode/v1/chat/completions',
@@ -283,7 +370,6 @@ async function callDashScopeVision(
       timeout: REQUEST_TIMEOUT,
     },
   );
-
   return resp.data?.choices?.[0]?.message?.content || '';
 }
 
@@ -295,25 +381,64 @@ function getCloudProvider(model: string): CloudProvider {
   return null;
 }
 
+// --------------- Multi-stage analysis ---------------
+
+export async function analyzeCircuitMultiStage(
+  imagePath: string,
+  model: string = 'qwen3-vl:latest',
+  referencePath?: string,
+): Promise<Topology> {
+  const images = buildImages(imagePath, referencePath);
+  const hasReference = !!referencePath;
+
+  // Pass 1: Component Discovery
+  const pass1Prompt = componentDiscoveryPrompt(model, hasReference);
+  const pass1Response = await callVlm(pass1Prompt, images, model);
+  const pass1Data = extractPartialJson(pass1Response);
+
+  if (!pass1Data?.components?.length) {
+    // Fall back to single-pass if component discovery fails
+    return analyzeDiagram(imagePath, model, referencePath);
+  }
+
+  const componentIds: string[] = pass1Data.components.map((c: any) => c.id);
+  const componentList = pass1Data.components
+    .map((c: any) => `- ${c.id}: ${c.type}${c.label ? ` (${c.label})` : ''}${c.position ? ` [${c.position}]` : ''}`)
+    .join('\n');
+
+  // Pass 2: Connection Tracing
+  const pass2Prompt = connectionTracingPrompt(componentList, componentIds, hasReference);
+  const pass2Response = await callVlm(pass2Prompt, images, model);
+  const pass2Data = extractPartialJson(pass2Response);
+
+  const components = (pass1Data.components || []).map((c: any) => ({
+    id: c.id,
+    type: c.type,
+    label: c.label || c.id,
+    position: c.position,
+  }));
+
+  const connections = (pass2Data?.connections || []).map((c: any) => ({
+    source: c.source,
+    target: c.target,
+    wire_id: c.wire_id,
+    confidence: c.confidence,
+  }));
+
+  return { components, connections };
+}
+
+// --------------- Single-pass analysis (fallback) ---------------
+
 export async function analyzeDiagram(
   imagePath: string,
   model: string = 'qwen3-vl:latest',
   referencePath?: string,
 ): Promise<Topology> {
   try {
-    let response: string;
-    const provider = getCloudProvider(model);
-
-    if (provider === 'openai') {
-      response = await callOpenAIVision(imagePath, model, referencePath);
-    } else if (provider === 'dashscope') {
-      response = await callDashScopeVision(imagePath, model, referencePath);
-    } else {
-      const useGenerate = model.toLowerCase().includes('deepseek-ocr');
-      const caller = useGenerate ? callOllamaGenerate : callOllamaChat;
-      response = await caller(imagePath, model, referencePath);
-    }
-
+    const images = buildImages(imagePath, referencePath);
+    const prompt = singlePassPrompt(model, !!referencePath);
+    const response = await callVlm(prompt, images, model);
     return extractJsonFromResponse(response, model);
   } catch (err: any) {
     if (err.code === 'ECONNREFUSED') {

@@ -121,26 +121,64 @@ export const Canvas: React.FC<CanvasProps> = ({
             const tgt = nodes.find((n) => n.id === edge.target);
             if (!src || !tgt) return null;
             const isEnergized = simulationMode === 'energized';
+            const isLowConfidence = edge.confidence !== undefined && edge.confidence < 0.7;
+
+            // Orthogonal path: go horizontal to midpoint, then vertical, then horizontal
+            const x1 = src.x + 90;
+            const y1 = src.y + 30;
+            const x2 = tgt.x + 90;
+            const y2 = tgt.y + 30;
+            const midX = (x1 + x2) / 2;
+            const pathD = `M${x1},${y1} L${midX},${y1} L${midX},${y2} L${x2},${y2}`;
+
+            const strokeColor = isLowConfidence ? '#EAB308' : isEnergized ? '#F59E0B' : '#94A3B8';
+            const dashArray = isLowConfidence ? '6 4' : undefined;
+
             return (
               <g key={edge.id}>
-                <line
-                  x1={src.x + 90} y1={src.y + 30}
-                  x2={tgt.x + 90} y2={tgt.y + 30}
-                  stroke={isEnergized ? '#F59E0B' : '#94A3B8'}
+                <path
+                  d={pathD}
+                  stroke={strokeColor}
                   strokeWidth="2"
+                  strokeDasharray={dashArray}
+                  fill="none"
                   markerEnd={isEnergized ? 'url(#arrowhead-energized)' : 'url(#arrowhead)'}
                   className="transition-colors duration-500"
                 />
+                {edge.wire_id && (
+                  <text
+                    x={midX}
+                    y={(y1 + y2) / 2 - 6}
+                    textAnchor="middle"
+                    className="text-[9px] fill-slate-400 font-mono select-none"
+                  >
+                    {edge.wire_id}
+                  </text>
+                )}
                 {isEnergized && (
                   <circle r="3" fill="#F59E0B">
                     <animateMotion
                       dur="1.5s"
                       repeatCount="indefinite"
-                      path={`M${src.x + 90},${src.y + 30} L${tgt.x + 90},${tgt.y + 30}`}
+                      path={pathD}
                     />
                   </circle>
                 )}
               </g>
+            );
+          })}
+          {/* Junction dots where 3+ wires meet at a node */}
+          {nodes.map((node) => {
+            const count = edges.filter((e) => e.source === node.id || e.target === node.id).length;
+            if (count < 3) return null;
+            return (
+              <circle
+                key={`junction-${node.id}`}
+                cx={node.x + 90}
+                cy={node.y + 30}
+                r="4"
+                fill="#334155"
+              />
             );
           })}
         </svg>
@@ -171,7 +209,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       </div>
 
       <div className="absolute bottom-6 left-6 flex flex-col gap-2 pointer-events-none">
-        <div className="bg-white/90 backdrop-blur border border-slate-200 p-3 rounded-md text-xs text-slate-600 shadow-lg">
+        <div className="bg-white/90 backdrop-blur border border-slate-200 p-3 rounded-lg text-xs text-slate-600 shadow-lg">
           <div className="flex items-center gap-2 mb-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div> <span>Breaker / Disconnect</span>
           </div>

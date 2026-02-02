@@ -26,6 +26,13 @@ export async function analyzeCircuit(
   return data;
 }
 
+export async function validateTopology(
+  topology: TopologyResponse,
+): Promise<{ warnings: Array<{ type: string; message: string; componentId: string }>; cleanedConnections: TopologyResponse['connections'] }> {
+  const { data } = await api.post('/validate', { topology });
+  return data;
+}
+
 export async function getLotoSteps(
   topology: TopologyResponse,
   componentId: string,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Download, FileDown, ShieldCheck, Lock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { clsx } from 'clsx';
-import type { CircuitNode, LotoStep } from '../types';
+import type { CircuitNode, LotoStep, ValidationWarning } from '../types';
 
 interface RightPanelProps {
   selectedNode: CircuitNode | null;
@@ -10,6 +10,7 @@ interface RightPanelProps {
   lotoSteps: LotoStep[];
   onStepClick: (stepId: string) => void;
   topologyJson?: string;
+  validationWarnings?: ValidationWarning[];
 }
 
 export const RightPanel: React.FC<RightPanelProps> = ({
@@ -19,6 +20,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   lotoSteps,
   onStepClick,
   topologyJson,
+  validationWarnings = [],
 }) => {
   const downloadJson = () => {
     if (!topologyJson) return;
@@ -32,21 +34,20 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   };
 
   return (
-    <div className="w-96 h-full bg-white border-l border-slate-200 flex flex-col shadow-xl z-20">
-      <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-        <h2 className="text-slate-900 font-bold text-xl flex items-center gap-2">
-          <ShieldCheck className="w-6 h-6 text-emerald-500" />
-          LOTO Procedure
+    <div className="w-96 h-full bg-white border-l border-slate-200 flex flex-col shadow-[-4px_0px_24px_0px_rgba(0,0,0,0.02)] z-20">
+      {/* Header */}
+      <div className="h-16 border-b border-slate-100 bg-white flex items-center justify-between px-6">
+        <h2 className="text-slate-900 font-bold text-lg flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-emerald-500" />
+          Safety Protocol
         </h2>
-        <p className="text-xs text-slate-500 mt-1">ISO 14118 Compliance Checklist</p>
+        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-full">ISO 14118</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
-        <div className="bg-white rounded-sm border border-slate-200 p-5 shadow-sm">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <div className="w-1 h-3 bg-blue-600"></div>
-            Selected Component
-          </h3>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-6 pt-6 space-y-6 bg-slate-50/30">
+        {/* Selected Component / Empty State */}
+        <div className="bg-white/50 border border-slate-200 rounded-xl px-8 py-8">
           {selectedNode ? (
             <div>
               <div className="flex justify-between items-start mb-3">
@@ -67,7 +68,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               <div className="grid grid-cols-2 gap-3 mt-4">
                 {selectedNode.meta &&
                   Object.entries(selectedNode.meta).map(([key, value]) => (
-                    <div key={key} className="bg-slate-50 p-2.5 rounded-sm border border-slate-100">
+                    <div key={key} className="bg-slate-50 p-2.5 rounded border border-slate-100">
                       <p className="text-[10px] text-slate-400 uppercase font-bold">{key}</p>
                       <p className="text-sm text-slate-700 font-mono font-medium">{value}</p>
                     </div>
@@ -75,91 +76,113 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-slate-400 text-sm bg-slate-50/50 rounded-sm border border-dashed border-slate-200">
-              Select a component on the schematic to view details.
-            </div>
+            <p className="text-sm text-slate-400 text-center">Select a component to view details</p>
           )}
         </div>
 
-        <div className="space-y-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <div className="w-1 h-3 bg-blue-600"></div>
-            Simulation State
-          </h3>
-          <div className="flex bg-slate-100 p-1.5 rounded-md border border-slate-200">
-            <button
-              onClick={() => setSimulationMode('energized')}
-              className={clsx(
-                'flex-1 py-2.5 rounded-sm text-xs font-bold transition-all shadow-sm',
-                simulationMode === 'energized'
-                  ? 'bg-white text-amber-600 shadow border border-slate-100'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 shadow-none',
-              )}
-            >
-              ENERGIZED (LIVE)
-            </button>
-            <button
-              onClick={() => setSimulationMode('isolating')}
-              className={clsx(
-                'flex-1 py-2.5 rounded-sm text-xs font-bold transition-all shadow-sm',
-                simulationMode === 'isolating'
-                  ? 'bg-white text-emerald-600 shadow border border-slate-100'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 shadow-none',
-              )}
-            >
-              ISOLATING
-            </button>
+        {/* System State */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">System State</h3>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-amber-500 opacity-95"></div>
+              <span className="text-[10px] font-bold text-amber-600">LIVE VOLTAGE</span>
+            </div>
+          </div>
+          <div className="bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+            <div className="flex">
+              <button
+                onClick={() => setSimulationMode('energized')}
+                className={clsx(
+                  'flex-1 py-2 rounded-lg text-xs font-bold transition-all',
+                  simulationMode === 'energized'
+                    ? 'bg-amber-50 border border-amber-200 text-amber-700 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-600',
+                )}
+              >
+                Energized
+              </button>
+              <button
+                onClick={() => setSimulationMode('isolating')}
+                className={clsx(
+                  'flex-1 py-2 rounded-lg text-xs font-bold transition-all',
+                  simulationMode === 'isolating'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-600',
+                )}
+              >
+                Safe / Isolated
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <div className="w-1 h-3 bg-blue-600"></div>
-            Isolation Steps
-          </h3>
+        {validationWarnings.length > 0 && (
           <div className="space-y-3">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Validation Warnings</h3>
+            <div className="space-y-2">
+              {validationWarnings.map((w, i) => (
+                <div
+                  key={i}
+                  className="p-3 rounded-xl border border-amber-200 bg-amber-50 flex items-start gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-amber-800 font-medium">{w.message}</p>
+                    <span className="text-[10px] text-amber-600 font-mono">{w.type.toUpperCase()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* LOTO Checklist */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">LOTO Checklist</h3>
+          <div className="space-y-2">
             {lotoSteps.map((step) => (
               <div
                 key={step.id}
                 onClick={() => onStepClick(step.id)}
                 className={clsx(
-                  'p-4 rounded-md border flex items-start gap-3 cursor-pointer transition-all hover:shadow-md',
-                  step.completed
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-white border-slate-200 hover:border-blue-300',
+                  'bg-white border border-slate-200 rounded-xl p-3 flex items-start gap-3 cursor-pointer transition-all hover:shadow-md',
+                  step.completed && 'bg-emerald-50 border-emerald-200',
                 )}
               >
                 <div
                   className={clsx(
-                    'mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border',
+                    'mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border shrink-0',
                     step.completed
                       ? 'bg-emerald-500 border-emerald-600 text-white'
-                      : 'bg-white border-slate-300 text-slate-500',
+                      : 'bg-white border-slate-200 text-slate-400',
                   )}
                 >
                   {step.completed ? <CheckCircle2 className="w-4 h-4" /> : step.order}
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className={clsx('text-sm font-bold', step.completed ? 'text-emerald-800 line-through opacity-70' : 'text-slate-800')}>
                     {step.action}
                   </p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    {step.type === 'lockout' && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-200 flex items-center gap-1">
-                        <Lock className="w-3 h-3" /> LOCKOUT
-                      </span>
-                    )}
-                    {step.type === 'verification' && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold border border-amber-200 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> VERIFY
-                      </span>
-                    )}
-                    {step.type === 'isolation' && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-bold border border-blue-200 flex items-center gap-1">
-                        ISOLATION
-                      </span>
-                    )}
-                    <span className="text-[10px] text-slate-400 font-mono ml-auto">{step.componentId.toUpperCase()}</span>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <div>
+                      {step.type === 'lockout' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 font-bold border border-red-100">
+                          Lockout
+                        </span>
+                      )}
+                      {step.type === 'verification' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-bold border border-amber-200">
+                          Verify
+                        </span>
+                      )}
+                      {step.type === 'isolation' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-bold border border-blue-200">
+                          Isolation
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">{step.componentId.toUpperCase()}</span>
                   </div>
                 </div>
               </div>
@@ -168,18 +191,21 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         </div>
       </div>
 
-      <div className="p-6 border-t border-slate-100 bg-slate-50 space-y-3">
-        <button
-          onClick={downloadJson}
-          className="w-full py-3 bg-white border border-slate-300 rounded-sm text-slate-700 text-xs font-bold hover:bg-slate-50 hover:border-slate-400 transition-colors flex items-center justify-center gap-2 shadow-sm"
-        >
-          <Download className="w-4 h-4" />
-          DOWNLOAD TOPOLOGY (JSON)
-        </button>
-        <button className="w-full py-3 bg-blue-600 rounded-sm text-white text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
-          <FileDown className="w-4 h-4" />
-          EXPORT SAFETY REPORT (PDF)
-        </button>
+      {/* Footer */}
+      <div className="px-6 pt-6 pb-6 border-t border-slate-100 bg-white">
+        <div className="flex gap-3">
+          <button
+            onClick={downloadJson}
+            className="flex-1 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-600 text-xs font-bold hover:bg-slate-50 hover:border-slate-300 transition-colors flex items-center justify-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            JSON
+          </button>
+          <button className="flex-1 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-600 text-xs font-bold hover:bg-slate-50 hover:border-slate-300 transition-colors flex items-center justify-center gap-2">
+            <FileDown className="w-4 h-4" />
+            PDF Report
+          </button>
+        </div>
       </div>
     </div>
   );
