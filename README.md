@@ -9,6 +9,7 @@
   Analyze electrical schematics with Vision Language Models and generate interactive LOTO safety procedures.
 </p>
 
+
 <p align="center">
   <img src="https://img.shields.io/badge/React-18-blue" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5-blue" alt="TypeScript" />
